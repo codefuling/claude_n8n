@@ -1,0 +1,238 @@
+{
+  "id": "KmV2w3WmdgqpGTET",
+  "name": "[CRON] 매일 아침 8시 국내 공모주 청약 → 카카오톡 나에게 보내기",
+  "active": false,
+  "activeVersionId": null,
+  "createdAt": "2026-11-09T11:08:01.437Z",
+  "updatedAt": "2026-11-09T11:08:01.437Z",
+  "isArchived": false,
+  "versionId": "e23517fb-ddf8-4dcb-a240-465ece208c57",
+  "triggerCount": 0,
+  "nodes": [
+    {
+      "id": "sc1",
+      "name": "매일 아침 8시",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8,
+              "field": "days"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "mt1",
+      "name": "수동 테스트",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "http1",
+      "name": "KRX KIND 공모청약 조회",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "position": [
+        280,
+        100
+      ],
+      "parameters": {
+        "url": "https://kind.krx.co.kr/listinvstg/pubofrprogcom.do",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "data"
+            }
+          }
+        },
+        "contentType": "form-urlencoded",
+        "method": "POST",
+        "specifyBody": "keypair",
+        "sendBody": true,
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "value": "Mozilla/5.0",
+              "name": "User-Agent"
+            },
+            {
+              "value": "https://kind.krx.co.kr/listinvstg/pubofrprogcom.do?method=searchPubofrProgComMain",
+              "name": "Referer"
+            }
+          ]
+        },
+        "bodyParameters": {
+          "parameters": [
+            {
+              "value": "searchPubofrProgComSub",
+              "name": "method"
+            },
+            {
+              "value": "pubofrprogcom_sub",
+              "name": "forward"
+            },
+            {
+              "value": "100",
+              "name": "currentPageSize"
+            },
+            {
+              "value": "1",
+              "name": "pageIndex"
+            },
+            {
+              "value": "1",
+              "name": "orderMode"
+            },
+            {
+              "value": "D",
+              "name": "orderStat"
+            },
+            {
+              "value": "",
+              "name": "marketType"
+            },
+            {
+              "value": "={{ $now.minus({ days: 120 }).toFormat('yyyy-MM-dd') }}",
+              "name": "fromDate"
+            },
+            {
+              "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
+              "name": "toDate"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c1",
+      "name": "이번 주 공모주 10개 정리",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        100
+      ],
+      "parameters": {
+        "jsCode": "// KRX KIND 공모기업현황 HTML → 이번 주(오늘~+7일) 청약 진행/예정 종목 최대 10개\nconst html = String($input.first().json.data ?? $input.first().json ?? '');\nconst kst = (d) => new Date(d).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });\nconst today = kst(Date.now());\nconst weekEnd = kst(Date.now() + 7 * 86400000);\nconst strip = (s) => s.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\\s+/g, ' ').trim();\n\nconst rows = [];\nfor (const tr of html.split(/<tr[\\s>]/).slice(1)) {\n  const tds = [...tr.matchAll(/<td[^>]*>([\\s\\S]*?)<\\/td>/g)].map((m) => m[1]);\n  if (tds.length < 9) continue;\n  const name = strip(tds[0]);\n  const market = /코스닥/.test(tds[0]) ? '코스닥' : /코넥스/.test(tds[0]) ? '코넥스' : '유가';\n  const sub = strip(tds[3]).match(/\\d{4}-\\d{2}-\\d{2}/g);\n  if (!sub || sub.length < 2) continue;\n  const [start, end] = sub;\n  if (end < today || start > weekEnd) continue;\n  rows.push({ name, market, start, end, price: strip(tds[5]), listing: strip(tds[7]), broker: strip(tds[8]) });\n}\nrows.sort((a, b) => a.start.localeCompare(b.start));\nconst top = rows.slice(0, 10);\n\nconst md = (d) => d.slice(5).replace('-', '/');\nconst lines = top.map((r, i) => {\n  const state = r.start <= today ? '진행중' : '예정';\n  const price = r.price && r.price !== '-' ? ` ${r.price}원` : '';\n  return `${i + 1}. ${r.name}(${r.market}) ${md(r.start)}~${md(r.end)} ${state}${price}`;\n});\nconst header = `📈 이번주 공모주 청약 (${md(today)} 기준, ${top.length}건)`;\nif (!lines.length) lines.push('이번 주 청약 진행/예정 공모주가 없습니다.');\n\n// 카카오 기본 텍스트 템플릿은 200자 제한 → 200자 이내로 나눠 전송\nconst chunks = [];\nlet cur = header;\nfor (const l of lines) {\n  if ((cur + '\\n' + l).length > 190) { chunks.push(cur); cur = l; }\n  else cur += '\\n' + l;\n}\nchunks.push(cur);\nconst link = 'https://kind.krx.co.kr/listinvstg/pubofrprogcom.do?method=searchPubofrProgComMain';\nreturn chunks.map((text) => ({ json: { text, link } }));"
+      }
+    },
+    {
+      "id": "k1",
+      "name": "카카오톡 나에게 보내기",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "position": [
+        840,
+        100
+      ],
+      "parameters": {
+        "url": "https://kapi.kakao.com/v2/api/talk/memo/default/send",
+        "options": {},
+        "contentType": "form-urlencoded",
+        "method": "POST",
+        "specifyBody": "keypair",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "value": "={{ JSON.stringify({ object_type: 'text', text: $json.text, link: { web_url: $json.link, mobile_web_url: $json.link } }) }}",
+              "name": "template_object"
+            }
+          ]
+        },
+        "genericAuthType": "oAuth2Api",
+        "authentication": "genericCredentialType"
+      },
+      "credentials": {
+        "oAuth2Api": {
+          "id": "ixG67TuKHPFpH19I",
+          "name": "Unnamed credential"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "매일 아침 8시": {
+      "main": [
+        [
+          {
+            "node": "KRX KIND 공모청약 조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "수동 테스트": {
+      "main": [
+        [
+          {
+            "node": "KRX KIND 공모청약 조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "KRX KIND 공모청약 조회": {
+      "main": [
+        [
+          {
+            "node": "이번 주 공모주 10개 정리",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "이번 주 공모주 10개 정리": {
+      "main": [
+        [
+          {
+            "node": "카카오톡 나에게 보내기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "timezone": "Asia/Seoul",
+    "executionOrder": "v1"
+  },
+  "meta": null,
+  "tags": [],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "KmV2w3WmdgqpGTET",
+      "projectId": "TwBQlM1mY6C8gAoC",
+      "createdAt": "2026-11-09T11:08:01.438Z",
+      "updatedAt": "2026-11-09T11:08:01.438Z"
+    }
+  ],
+  "activeVersion": null
+}
