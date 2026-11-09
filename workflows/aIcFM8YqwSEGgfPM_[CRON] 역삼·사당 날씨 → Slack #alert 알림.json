@@ -1,0 +1,198 @@
+{
+  "id": "aIcFM8YqwSEGgfPM",
+  "name": "[CRON] 역삼·사당 날씨 → Slack #alert 알림",
+  "active": false,
+  "activeVersionId": null,
+  "createdAt": "2026-11-06T12:45:56.558Z",
+  "updatedAt": "2026-11-06T12:46:21.850Z",
+  "isArchived": false,
+  "versionId": "0912fa2f-59cc-417a-bedf-c72a8231a522",
+  "triggerCount": 0,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "t1",
+      "name": "매일 아침 8시",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  { json: { title: '서울시 역삼동', lat: 37.5006, lon: 127.0366 } },\n  { json: { title: '서울시 사당동', lat: 37.4765, lon: 126.9816 } },\n];"
+      },
+      "id": "p1",
+      "name": "지역 목록",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.open-meteo.com/v1/forecast",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "latitude",
+              "value": "={{ $json.lat }}"
+            },
+            {
+              "name": "longitude",
+              "value": "={{ $json.lon }}"
+            },
+            {
+              "name": "current",
+              "value": "temperature_2m,relative_humidity_2m,weather_code"
+            },
+            {
+              "name": "daily",
+              "value": "precipitation_probability_max"
+            },
+            {
+              "name": "timezone",
+              "value": "Asia/Seoul"
+            },
+            {
+              "name": "forecast_days",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "w1",
+      "name": "Open-Meteo 날씨 조회",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const wmo = {\n  0: '맑음', 1: '대체로 맑음', 2: '구름 조금', 3: '흐림',\n  45: '안개', 48: '서리 안개',\n  51: '약한 이슬비', 53: '이슬비', 55: '강한 이슬비',\n  56: '약한 어는 이슬비', 57: '강한 어는 이슬비',\n  61: '약한 비', 63: '비', 65: '강한 비',\n  66: '약한 어는 비', 67: '강한 어는 비',\n  71: '약한 눈', 73: '눈', 75: '강한 눈', 77: '싸락눈',\n  80: '약한 소나기', 81: '소나기', 82: '강한 소나기',\n  85: '약한 눈 소나기', 86: '강한 눈 소나기',\n  95: '뇌우', 96: '우박을 동반한 뇌우', 99: '강한 우박을 동반한 뇌우',\n};\nconst places = $('지역 목록').all();\nconst blocks = $input.all().map((item, i) => {\n  const d = item.json;\n  const name = places[i].json.title;\n  const code = d.current.weather_code;\n  return [\n    `[${name} 날씨]`,\n    `- 날씨: ${wmo[code] ?? '알 수 없음(코드 ' + code + ')'}`,\n    `- 온도: ${d.current.temperature_2m}°C`,\n    `- 습도: ${d.current.relative_humidity_2m}%`,\n    `- 강수확률: ${d.daily.precipitation_probability_max[0]}%`,\n  ].join('\\n');\n});\nreturn [{ json: { text: blocks.join('\\n\\n') } }];\n"
+      },
+      "id": "f1",
+      "name": "알림 메시지 만들기",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "mode": "name",
+          "__rl": true,
+          "value": "alert"
+        },
+        "text": "={{ $json.text }}",
+        "otherOptions": {}
+      },
+      "id": "s1",
+      "name": "Slack #alert 알림",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        960,
+        0
+      ],
+      "webhookId": "8a6a35e8-dfe0-4257-bfa4-3e8c0d158e06",
+      "credentials": {
+        "slackApi": {
+          "id": "bWNoZcP0lVPzGbcI",
+          "name": "Slack account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "알림 메시지 만들기": {
+      "main": [
+        [
+          {
+            "node": "Slack #alert 알림",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open-Meteo 날씨 조회": {
+      "main": [
+        [
+          {
+            "node": "알림 메시지 만들기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "매일 아침 8시": {
+      "main": [
+        [
+          {
+            "node": "지역 목록",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "지역 목록": {
+      "main": [
+        [
+          {
+            "node": "Open-Meteo 날씨 조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "aIcFM8YqwSEGgfPM",
+      "projectId": "TwBQlM1mY6C8gAoC",
+      "createdAt": "2026-11-06T12:45:56.561Z",
+      "updatedAt": "2026-11-06T12:45:56.561Z"
+    }
+  ],
+  "activeVersion": null
+}
