@@ -1,0 +1,146 @@
+{
+  "id": "UadcaCF1GIAPvCBJ",
+  "name": "[WEBHOOK] 일정 목록 → 카카오 톡캘린더 일괄 등록",
+  "active": false,
+  "activeVersionId": null,
+  "createdAt": "2026-11-09T11:27:52.193Z",
+  "updatedAt": "2026-11-09T11:27:52.193Z",
+  "isArchived": false,
+  "versionId": "929c6205-ccf7-4e1d-998c-c2b07631885e",
+  "triggerCount": 1,
+  "nodes": [
+    {
+      "id": "wh1",
+      "name": "Webhook",
+      "webhookId": "kakao-schedule-webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "path": "kakao-schedule",
+        "options": {},
+        "httpMethod": "POST"
+      }
+    },
+    {
+      "id": "mt1",
+      "name": "수동 테스트",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "c1",
+      "name": "일정 목록 구성",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        100
+      ],
+      "parameters": {
+        "jsCode": "// Webhook body로 { \"events\": [ { date, start, end, name, description } ] } 를 보내면 그 목록을 등록하고,\n// 없으면 아래 기본 일정(홍길동 11월 일정 6건)을 등록한다. 제목 형식: [일정명] HH:MM ~ HH:MM (KST)\nconst DEFAULTS = [\n  { date: '2026-11-11', start: '10:00', end: '11:00', name: '기획팀 킥오프 회의', description: '기획팀과 신규 프로젝트 방향성을 정하는 킥오프 회의' },\n  { date: '2026-11-12', start: '14:00', end: '15:00', name: '부서 회의', description: '하반기 성과를 점검하는 부서 회의' },\n  { date: '2026-11-13', start: '16:00', end: '17:00', name: '외부 협력사 미팅', description: '외부 협력사와의 신규 사업 미팅 - 관련 제안서를 미리 챙길 것' },\n  { date: '2026-11-17', start: '15:00', end: '16:00', name: '클라이언트 계약 미팅', description: '클라이언트와의 본 계약 체결을 위한 주요 미팅' },\n  { date: '2026-11-19', start: '17:00', end: '18:00', name: '부서별 주간 업무 보고회', description: '부서별 주간 업무 보고회' },\n  { date: '2026-11-20', start: '14:00', end: '15:00', name: '4분기 실적 공유 워크숍', description: '전사 차원의 4분기 실적 공유 워크숍' },\n];\nconst src = $input.first().json;\nconst list = (src.body && Array.isArray(src.body.events) && src.body.events.length) ? src.body.events : DEFAULTS;\n// KST(UTC+9) → UTC RFC3339\nconst toUtc = (date, hm) => {\n  const [y, m, d] = date.split('-').map(Number);\n  const [h, mi] = hm.split(':').map(Number);\n  return new Date(Date.UTC(y, m - 1, d, h - 9, mi)).toISOString().slice(0, 19) + 'Z';\n};\nreturn list.map((e) => {\n  const title = `[${e.name}] ${e.start} ~ ${e.end}`.slice(0, 50);\n  const event = {\n    title,\n    time: { start_at: toUtc(e.date, e.start), end_at: toUtc(e.date, e.end), time_zone: 'Asia/Seoul', all_day: false, lunar: false },\n    description: e.description || '',\n    reminders: [30],\n  };\n  return { json: { title, event: JSON.stringify(event) } };\n});"
+      }
+    },
+    {
+      "id": "k1",
+      "name": "톡캘린더에 일정 등록",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "position": [
+        560,
+        100
+      ],
+      "parameters": {
+        "url": "https://kapi.kakao.com/v2/api/calendar/create/event",
+        "options": {},
+        "contentType": "form-urlencoded",
+        "method": "POST",
+        "specifyBody": "keypair",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "value": "primary",
+              "name": "calendar_id"
+            },
+            {
+              "value": "={{ $json.event }}",
+              "name": "event"
+            }
+          ]
+        },
+        "genericAuthType": "oAuth2Api",
+        "authentication": "genericCredentialType"
+      },
+      "credentials": {
+        "oAuth2Api": {
+          "id": "ixG67TuKHPFpH19I",
+          "name": "Unnamed credential"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "일정 목록 구성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "수동 테스트": {
+      "main": [
+        [
+          {
+            "node": "일정 목록 구성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "일정 목록 구성": {
+      "main": [
+        [
+          {
+            "node": "톡캘린더에 일정 등록",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "timezone": "Asia/Seoul",
+    "executionOrder": "v1"
+  },
+  "meta": null,
+  "tags": [],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "UadcaCF1GIAPvCBJ",
+      "projectId": "TwBQlM1mY6C8gAoC",
+      "createdAt": "2026-11-09T11:27:52.195Z",
+      "updatedAt": "2026-11-09T11:27:52.195Z"
+    }
+  ],
+  "activeVersion": null
+}
