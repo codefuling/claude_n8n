@@ -1,0 +1,264 @@
+{
+  "id": "sWHitjPfqQ7Yn4wU",
+  "name": "[WEBHOOK] 수신 메시지 → 카카오톡 나에게 보내기",
+  "active": true,
+  "activeVersionId": "613e005e-3246-4425-97af-bd302d646116",
+  "createdAt": "2026-11-09T10:29:51.052Z",
+  "updatedAt": "2026-11-09T10:48:40.048Z",
+  "isArchived": false,
+  "versionId": "613e005e-3246-4425-97af-bd302d646116",
+  "triggerCount": 1,
+  "nodes": [
+    {
+      "id": "wh1",
+      "name": "Webhook",
+      "webhookId": "kakao-me-webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "kakao-me",
+        "options": {}
+      }
+    },
+    {
+      "id": "mt1",
+      "name": "수동 테스트",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        208
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "c1",
+      "name": "메시지 구성",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        112
+      ],
+      "parameters": {
+        "jsCode": "// Webhook body: { \"message\": \"보낼 내용\", \"link\": \"https://...\" }\nconst src = $input.first().json;\nconst b = src.body || src;\nconst text = String(b.message || b.text || 'Hello, World').slice(0, 200);\nconst link = b.link || 'http://localhost:5678';\nreturn [{ json: { text, link } }];"
+      }
+    },
+    {
+      "id": "h1",
+      "name": "카카오톡 나에게 보내기",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "position": [
+        784,
+        112
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://kapi.kakao.com/v2/api/talk/memo/default/send",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "template_object",
+              "value": "={{ JSON.stringify({ object_type: 'text', text: $json.text, link: { web_url: $json.link, mobile_web_url: $json.link } }) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "oAuth2Api": {
+          "id": "ixG67TuKHPFpH19I",
+          "name": "Unnamed credential"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "메시지 구성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "수동 테스트": {
+      "main": [
+        [
+          {
+            "node": "메시지 구성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "메시지 구성": {
+      "main": [
+        [
+          {
+            "node": "카카오톡 나에게 보내기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": null,
+  "tags": [],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "sWHitjPfqQ7Yn4wU",
+      "projectId": "TwBQlM1mY6C8gAoC",
+      "createdAt": "2026-11-09T10:29:51.088Z",
+      "updatedAt": "2026-11-09T10:29:51.088Z"
+    }
+  ],
+  "activeVersion": {
+    "versionId": "613e005e-3246-4425-97af-bd302d646116",
+    "workflowId": "sWHitjPfqQ7Yn4wU",
+    "nodes": [
+      {
+        "id": "wh1",
+        "name": "Webhook",
+        "webhookId": "kakao-me-webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          0
+        ],
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "kakao-me",
+          "options": {}
+        }
+      },
+      {
+        "id": "mt1",
+        "name": "수동 테스트",
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          0,
+          208
+        ],
+        "parameters": {}
+      },
+      {
+        "id": "c1",
+        "name": "메시지 구성",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          272,
+          112
+        ],
+        "parameters": {
+          "jsCode": "// Webhook body: { \"message\": \"보낼 내용\", \"link\": \"https://...\" }\nconst src = $input.first().json;\nconst b = src.body || src;\nconst text = String(b.message || b.text || 'Hello, World').slice(0, 200);\nconst link = b.link || 'http://localhost:5678';\nreturn [{ json: { text, link } }];"
+        }
+      },
+      {
+        "id": "h1",
+        "name": "카카오톡 나에게 보내기",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 3000,
+        "position": [
+          784,
+          112
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://kapi.kakao.com/v2/api/talk/memo/default/send",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "oAuth2Api",
+          "sendBody": true,
+          "contentType": "form-urlencoded",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "template_object",
+                "value": "={{ JSON.stringify({ object_type: 'text', text: $json.text, link: { web_url: $json.link, mobile_web_url: $json.link } }) }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "credentials": {
+          "oAuth2Api": {
+            "id": "ixG67TuKHPFpH19I",
+            "name": "Unnamed credential"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "메시지 구성",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "수동 테스트": {
+        "main": [
+          [
+            {
+              "node": "메시지 구성",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "메시지 구성": {
+        "main": [
+          [
+            {
+              "node": "카카오톡 나에게 보내기",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "kim sehwan",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "createdAt": "2026-11-09T10:48:40.049Z",
+    "updatedAt": "2026-11-09T10:48:40.049Z"
+  }
+}
