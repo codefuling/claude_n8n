@@ -1,0 +1,313 @@
+{
+  "id": "QrOVuQnxzeQEXExp",
+  "name": "[CRON] 인기 한식 레시피 블로그 → SMTP 메일 발송",
+  "active": false,
+  "activeVersionId": null,
+  "createdAt": "2026-11-06T10:39:01.269Z",
+  "updatedAt": "2026-11-06T11:28:01.187Z",
+  "isArchived": false,
+  "versionId": "a1c8b936-6504-41bb-a05e-5a8d2c459636",
+  "triggerCount": 0,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "trigger-1",
+      "name": "매일 아침 8시",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "당신은 한식 트렌드 분석가입니다. 반드시 JSON 객체만 출력합니다.",
+              "role": "system"
+            },
+            {
+              "content": "=최근 가장 인기 있는 한식 중 1가지를 선정하세요. 매번 다른 음식이 나오도록 다양하게 고르세요. 오늘 날짜: {{ $now.format('yyyy-MM-dd') }}\n출력 형식: {\"dish\":\"음식명\",\"reason\":\"선정 이유 한 문장\"}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "pick-1",
+      "name": "인기 한식 1가지 선정",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        240,
+        0
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "ob4VT5dh6vSdyTaI",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $input.first().json;\nconst raw = j.choices?.[0]?.message?.content ?? j.message?.content ?? j.output?.[0]?.content?.[0]?.text ?? j.text ?? '';\nconst m = String(raw).match(/\\{[\\s\\S]*\\}/);\nconst p = m ? JSON.parse(m[0]) : { dish: '김치볶음밥', reason: '' };\nreturn [{ json: { dish: p.dish, reason: p.reason } }];"
+      },
+      "id": "parse-1",
+      "name": "선정 결과 파싱",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "당신은 한식 요리 전문가입니다. 사용자에게 친절하게 '~하세요' 어조로 간결하게 설명합니다. 반드시 JSON 객체만 출력합니다.",
+              "role": "system"
+            },
+            {
+              "content": "=요리: {{ $json.dish }}\n재료와 요리 순서를 요약하고 블로그 글을 작성하세요.\n출력 형식(JSON): {\"title\":\"음식명\",\"description\":\"음식 한 줄 설명 (예: 김치와 햄을 이용해서 간단하게 만들 수 있는 인기 음식)\",\"ingredients\":[\"재료 (분량)\"],\"steps\":[\"1단계 설명\"],\"intro\":\"블로그 도입부 2~3문장\",\"tip\":\"요리 팁 1~2문장\"}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "blog-1",
+      "name": "레시피 요약 및 블로그 글 작성",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        720,
+        0
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "ob4VT5dh6vSdyTaI",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $input.first().json;\nconst raw = j.choices?.[0]?.message?.content ?? j.message?.content ?? j.output?.[0]?.content?.[0]?.text ?? j.text ?? '';\nconst m = String(raw).match(/\\{[\\s\\S]*\\}/);\nconst p = JSON.parse(m[0]);\np.dish = $('선정 결과 파싱').first().json.dish;\nreturn [{ json: p }];"
+      },
+      "id": "merge-1",
+      "name": "블로그 데이터 파싱",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://ko.wikipedia.org/w/api.php",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "action",
+              "value": "query"
+            },
+            {
+              "name": "format",
+              "value": "json"
+            },
+            {
+              "name": "generator",
+              "value": "search"
+            },
+            {
+              "name": "gsrsearch",
+              "value": "={{ $json.dish }}"
+            },
+            {
+              "name": "gsrlimit",
+              "value": "5"
+            },
+            {
+              "name": "prop",
+              "value": "pageimages"
+            },
+            {
+              "name": "piprop",
+              "value": "original"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "img-1",
+      "name": "음식 이미지 검색",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const blog = $('블로그 데이터 파싱').first().json;\nconst pages = Object.values($input.first().json.query?.pages || {});\nconst withImg = pages.find(p => p.original?.source);\nconst img = withImg ? withImg.original.source : '';\nconst li = a => a.map(x => `<li>${x}</li>`).join('');\nconst html = `<div style=\"font-family:'Malgun Gothic',sans-serif;max-width:640px;margin:auto;line-height:1.7\">\n<h1>${blog.title}</h1>\n<p><b>${blog.description}</b></p>\n${img ? `<img src=\"${img}\" alt=\"${blog.title}\" style=\"width:100%;border-radius:8px\">` : ''}\n<p>${blog.intro}</p>\n<h2>재료</h2><ul>${li(blog.ingredients)}</ul>\n<h2>만드는 순서</h2><ol>${li(blog.steps)}</ol>\n<h2>요리 팁</h2><p>${blog.tip}</p>\n</div>`;\nreturn [{ json: { subject: `[오늘의 한식] ${blog.title}`, html } }];"
+      },
+      "id": "html-1",
+      "name": "양식에 맞게 글 다듬기",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "codefuling@gmail.com",
+        "toEmail": "codefuling@gmail.com",
+        "subject": "={{ $json.subject }}",
+        "html": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "gmail-1",
+      "name": "SMTP 메일 발송",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1680,
+        0
+      ],
+      "webhookId": "52c621e7-bb32-4e9e-93e1-369dc4f64548",
+      "credentials": {
+        "smtp": {
+          "id": "DINVq3h5QyI3Ah5v",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "매일 아침 8시": {
+      "main": [
+        [
+          {
+            "node": "인기 한식 1가지 선정",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "인기 한식 1가지 선정": {
+      "main": [
+        [
+          {
+            "node": "선정 결과 파싱",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "선정 결과 파싱": {
+      "main": [
+        [
+          {
+            "node": "레시피 요약 및 블로그 글 작성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "레시피 요약 및 블로그 글 작성": {
+      "main": [
+        [
+          {
+            "node": "블로그 데이터 파싱",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "블로그 데이터 파싱": {
+      "main": [
+        [
+          {
+            "node": "음식 이미지 검색",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "음식 이미지 검색": {
+      "main": [
+        [
+          {
+            "node": "양식에 맞게 글 다듬기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "양식에 맞게 글 다듬기": {
+      "main": [
+        [
+          {
+            "node": "SMTP 메일 발송",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "QrOVuQnxzeQEXExp",
+      "projectId": "TwBQlM1mY6C8gAoC",
+      "createdAt": "2026-11-06T10:39:01.274Z",
+      "updatedAt": "2026-11-06T10:39:01.274Z"
+    }
+  ],
+  "activeVersion": null
+}
