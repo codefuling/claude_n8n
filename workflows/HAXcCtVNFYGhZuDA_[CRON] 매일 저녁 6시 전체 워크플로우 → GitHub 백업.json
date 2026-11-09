@@ -1,0 +1,262 @@
+{
+  "id": "HAXcCtVNFYGhZuDA",
+  "name": "[CRON] 매일 저녁 6시 전체 워크플로우 → GitHub 백업",
+  "active": false,
+  "activeVersionId": null,
+  "createdAt": "2026-11-09T12:06:16.281Z",
+  "updatedAt": "2026-11-09T12:21:46.060Z",
+  "isArchived": false,
+  "versionId": "379c96b5-d3a7-4df4-bc3b-fc4f348904fb",
+  "triggerCount": 0,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 18
+            }
+          ]
+        }
+      },
+      "id": "sc1",
+      "name": "매일 저녁 6시",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "mt1",
+      "name": "수동 테스트",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "filters": {},
+        "requestOptions": {}
+      },
+      "id": "n1",
+      "name": "전체 워크플로우 조회",
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [
+        288,
+        112
+      ],
+      "credentials": {
+        "n8nApi": {
+          "id": "drxcBne7Pd2UzNZC",
+          "name": "n8n account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== 설정: GitHub 백업 저장소 (본인 값으로 교체) =====\nconst OWNER = 'codefuling';\nconst REPO = 'claude_n8n';\nconst BRANCH = 'main';\nconst DIR = 'workflows';\n// =====================================================\nconst kst = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' });\nconst safe = (s) => String(s).replace(/[\\\\/:*?\"<>|]/g, '_').replace(/\\s+/g, ' ').trim().slice(0, 80);\nreturn $input.all().map(({ json: w }) => {\n  // 실행 데이터가 섞인 pinData / staticData 는 백업에서 제외\n  const { pinData, staticData, ...clean } = w;\n  const path = `${DIR}/${w.id}_${safe(w.name)}.json`;\n  const content = Buffer.from(JSON.stringify(clean, null, 2), 'utf8').toString('base64');\n  const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path.split('/').map(encodeURIComponent).join('/')}`;\n  return { json: { id: w.id, name: w.name, path, content, url, branch: BRANCH, message: `backup: ${w.name} (${kst} KST)` } };\n});"
+      },
+      "id": "c1",
+      "name": "백업 파일 구성",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ref",
+              "value": "={{ $json.branch }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "g1",
+      "name": "GitHub 기존 파일 조회",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        848,
+        112
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "cuzxNQoCBmZXwekK",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 기존 파일(sha, content)과 비교해 변경된 워크플로우만 커밋 대상으로 남긴다\nconst built = $('백업 파일 구성').all();\nconst out = [];\n$input.all().forEach((it, i) => {\n  const b = built[i].json;\n  const ex = it.json || {};\n  const exists = !!ex.sha;\n  const same = exists && String(ex.content || '').replace(/\\n/g, '') === b.content;\n  if (same) return;\n  const body = { message: b.message, content: b.content, branch: b.branch };\n  if (exists) body.sha = ex.sha;\n  out.push({ json: { name: b.name, url: b.url, action: exists ? 'update' : 'create', body: JSON.stringify(body) } });\n});\nreturn out;"
+      },
+      "id": "c2",
+      "name": "변경된 것만 추리기",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "g2",
+      "name": "GitHub 커밋 (생성/수정)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "position": [
+        1408,
+        112
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "cuzxNQoCBmZXwekK",
+          "name": "GitHub account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "매일 저녁 6시": {
+      "main": [
+        [
+          {
+            "node": "전체 워크플로우 조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "수동 테스트": {
+      "main": [
+        [
+          {
+            "node": "전체 워크플로우 조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "전체 워크플로우 조회": {
+      "main": [
+        [
+          {
+            "node": "백업 파일 구성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "백업 파일 구성": {
+      "main": [
+        [
+          {
+            "node": "GitHub 기존 파일 조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub 기존 파일 조회": {
+      "main": [
+        [
+          {
+            "node": "변경된 것만 추리기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "변경된 것만 추리기": {
+      "main": [
+        [
+          {
+            "node": "GitHub 커밋 (생성/수정)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "timezone": "Asia/Seoul",
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "HAXcCtVNFYGhZuDA",
+      "projectId": "TwBQlM1mY6C8gAoC",
+      "createdAt": "2026-11-09T12:06:16.284Z",
+      "updatedAt": "2026-11-09T12:06:16.284Z"
+    }
+  ],
+  "activeVersion": null
+}
