@@ -1,0 +1,281 @@
+{
+  "id": "EaWpOrT4G4Moq4mo",
+  "name": "[CRON] 멜론 차트 Firecrawl 크롤링 → 구글 시트 정리",
+  "active": false,
+  "activeVersionId": null,
+  "createdAt": "2026-11-06T12:21:14.310Z",
+  "updatedAt": "2026-11-06T12:39:09.260Z",
+  "isArchived": false,
+  "versionId": "1cc3983e-b2e7-4b44-a2c5-fb41a8002aa8",
+  "triggerCount": 0,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "t1",
+      "name": "매일 아침 9시",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.firecrawl.dev/v1/scrape",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ url: \"https://www.melon.com/chart/index.htm\", formats: [\"rawHtml\"], onlyMainContent: false, waitFor: 2000 }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "fc1",
+      "name": "Firecrawl 멜론차트 크롤링",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "position": [
+        240,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bCWz8YWrsk8BbV1z",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const first = $input.first().json;\nconst html = first.data?.rawHtml ?? first.data?.html ?? '';\nconst dec = s => s.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '\"').replace(/&#0?39;/g, \"'\").replace(/&(Eacute|eacute|Egrave|egrave|Aacute|aacute|Oacute|oacute|Uacute|uacute|Iacute|iacute|ntilde|Ntilde|ccedil|uuml|ouml|auml);/g, (_, n) => ({ Eacute: 'É', eacute: 'é', Egrave: 'È', egrave: 'è', Aacute: 'Á', aacute: 'á', Oacute: 'Ó', oacute: 'ó', Uacute: 'Ú', uacute: 'ú', Iacute: 'Í', iacute: 'í', ntilde: 'ñ', Ntilde: 'Ñ', ccedil: 'ç', uuml: 'ü', ouml: 'ö', auml: 'ä' })[n]).replace(/\\s+/g, ' ').trim();\nconst rows = html.split(/<tr class=\"lst\\d+\"/).slice(1);\nconst songs = [];\nconst seen = new Set();\nfor (const r of rows) {\n  const id = (r.match(/data-song-no=\"(\\d+)\"/) || [])[1];\n  if (!id || seen.has(id)) continue;\n  const rank = Number((r.match(/<span class=\"rank\\s*\">(\\d+)<\\/span>/) || [])[1]);\n  const title = dec((r.match(/rank01\">\\s*<span>\\s*<a[^>]*>([\\s\\S]*?)<\\/a>/) || [])[1] || '');\n  const artBlock = (r.match(/rank02\">([\\s\\S]*?)<span class=\"checkEllipsis\"/) || [])[1] || '';\n  const artist = [...artBlock.matchAll(/<a[^>]*>([\\s\\S]*?)<\\/a>/g)].map(m => dec(m[1])).join(', ');\n  seen.add(id);\n  songs.push({ id, rank, title, artist });\n}\nif (!songs.length) throw new Error('멜론 차트 데이터를 파싱하지 못했습니다. Firecrawl 응답(data.rawHtml)을 확인하세요.');\nreturn [{ json: { songs, ids: songs.map(s => s.id).join(',') } }];\n"
+      },
+      "id": "c1",
+      "name": "곡 정보 파싱",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ \"https://www.melon.com/commonlike/getSongLike.json?contsIds=\" + $json.ids }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120 Safari/537.36"
+            },
+            {
+              "name": "Referer",
+              "value": "https://www.melon.com/chart/index.htm"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "lk1",
+      "name": "좋아요 수 조회",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const songs = $('곡 정보 파싱').first().json.songs;\nconst likes = {};\nfor (const l of $input.first().json.contsLike || []) likes[l.CONTSID] = l.SUMMCNT;\nreturn songs.map(s => ({\n  json: {\n    순위: s.rank,\n    곡제목: s.title,\n    가수: s.artist,\n    좋아요수: likes[s.id] ?? 0,\n  },\n}));"
+      },
+      "id": "c2",
+      "name": "순위·제목·가수·좋아요 정리",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1dsd-mynkGbstqYXxp_WPbQpbpEeNT95kgUNXK49y0gs",
+          "mode": "list",
+          "cachedResultName": "멜론차트",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1dsd-mynkGbstqYXxp_WPbQpbpEeNT95kgUNXK49y0gs/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "시트1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1dsd-mynkGbstqYXxp_WPbQpbpEeNT95kgUNXK49y0gs/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "순위": "={{ $json.순위 }}",
+            "곡제목": "={{ $json.곡제목 }}",
+            "가수": "={{ $json.가수 }}",
+            "좋아요수": "= {{ $json.좋아요수 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "순위",
+              "displayName": "순위",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "곡제목",
+              "displayName": "곡제목",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "가수",
+              "displayName": "가수",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "좋아요수",
+              "displayName": "좋아요수",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "gs1",
+      "name": "구글 시트에 추가",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1200,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HspDGVBWdOLhNin1",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "순위·제목·가수·좋아요 정리": {
+      "main": [
+        [
+          {
+            "node": "구글 시트에 추가",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "매일 아침 9시": {
+      "main": [
+        [
+          {
+            "node": "Firecrawl 멜론차트 크롤링",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "좋아요 수 조회": {
+      "main": [
+        [
+          {
+            "node": "순위·제목·가수·좋아요 정리",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "곡 정보 파싱": {
+      "main": [
+        [
+          {
+            "node": "좋아요 수 조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Firecrawl 멜론차트 크롤링": {
+      "main": [
+        [
+          {
+            "node": "곡 정보 파싱",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "EaWpOrT4G4Moq4mo",
+      "projectId": "TwBQlM1mY6C8gAoC",
+      "createdAt": "2026-11-06T12:21:14.313Z",
+      "updatedAt": "2026-11-06T12:21:14.313Z"
+    }
+  ],
+  "activeVersion": null
+}
