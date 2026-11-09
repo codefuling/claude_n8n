@@ -1,0 +1,88 @@
+{
+  "id": "9dkcEPCWZARhzzW9",
+  "name": "[WEBHOOK] 수신 데이터 → Slack #alert 알림",
+  "active": false,
+  "activeVersionId": null,
+  "createdAt": "2026-11-06T10:22:23.167Z",
+  "updatedAt": "2026-11-06T10:27:25.751Z",
+  "isArchived": false,
+  "versionId": "e9a2f71e-2c3b-40db-ad5a-717dba6fc4bc",
+  "triggerCount": 0,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "slack-alert",
+        "options": {}
+      },
+      "id": "webhook-1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "slack-alert-webhook"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "alert",
+          "mode": "name"
+        },
+        "text": "=:rotating_light: *웹훅 알림*\n```{{ JSON.stringify($json.body, null, 2) }}```",
+        "otherOptions": {}
+      },
+      "id": "slack-1",
+      "name": "Slack #alert 알림",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        272,
+        0
+      ],
+      "webhookId": "189af5be-92e6-44e6-955c-f27295dd6e67",
+      "credentials": {
+        "slackApi": {
+          "id": "bWNoZcP0lVPzGbcI",
+          "name": "Slack account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Slack #alert 알림",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "9dkcEPCWZARhzzW9",
+      "projectId": "TwBQlM1mY6C8gAoC",
+      "createdAt": "2026-11-06T10:22:23.173Z",
+      "updatedAt": "2026-11-06T10:22:23.173Z"
+    }
+  ],
+  "activeVersion": null
+}
