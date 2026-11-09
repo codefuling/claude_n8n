@@ -1,0 +1,146 @@
+{
+  "id": "Pgl7ARrbqEWB1szW",
+  "name": "[WEBHOOK] 할 일 → 카카오 톡캘린더 등록",
+  "active": false,
+  "activeVersionId": null,
+  "createdAt": "2026-11-09T11:18:16.719Z",
+  "updatedAt": "2026-11-09T11:18:16.719Z",
+  "isArchived": false,
+  "versionId": "c6a3e8ce-84eb-4dcd-9a36-1aac60451acf",
+  "triggerCount": 1,
+  "nodes": [
+    {
+      "id": "wh1",
+      "name": "Webhook",
+      "webhookId": "kakao-todo-webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "path": "kakao-todo",
+        "options": {},
+        "httpMethod": "POST"
+      }
+    },
+    {
+      "id": "mt1",
+      "name": "수동 테스트",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "c1",
+      "name": "할 일 구성",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        100
+      ],
+      "parameters": {
+        "jsCode": "// Webhook body: { \"date\": \"2026-11-11\", \"title\": \"빼빼로 선물\", \"description\": \"...\" }  (수동 실행 시 기본값 사용)\nconst src = $input.first().json;\nconst b = src.body || src;\nconst kstToday = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });\nlet date = String(b.date || '2026-11-11');\n// \"11-11\" 또는 \"11월 11일\" 형태면 올해 날짜로 보정\nconst m = date.match(/^(?:(\\d{4})[-.])?(\\d{1,2})[-.월\\s]+(\\d{1,2})/);\nif (m) date = `${m[1] || kstToday.slice(0, 4)}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;\nconst title = String(b.title || '빼빼로 선물').slice(0, 50);\nconst next = new Date(date + 'T00:00:00Z');\nnext.setUTCDate(next.getUTCDate() + 1);\nconst event = {\n  title,\n  time: { start_at: date + 'T00:00:00Z', end_at: next.toISOString().slice(0, 19) + 'Z', time_zone: 'Asia/Seoul', all_day: true, lunar: false },\n  description: String(b.description || 'n8n으로 등록한 할 일'),\n  reminders: [],\n};\nreturn [{ json: { event: JSON.stringify(event), title, date } }];"
+      }
+    },
+    {
+      "id": "k1",
+      "name": "톡캘린더에 할 일 등록",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "position": [
+        560,
+        100
+      ],
+      "parameters": {
+        "url": "https://kapi.kakao.com/v2/api/calendar/create/event",
+        "options": {},
+        "contentType": "form-urlencoded",
+        "method": "POST",
+        "specifyBody": "keypair",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "value": "primary",
+              "name": "calendar_id"
+            },
+            {
+              "value": "={{ $json.event }}",
+              "name": "event"
+            }
+          ]
+        },
+        "genericAuthType": "oAuth2Api",
+        "authentication": "genericCredentialType"
+      },
+      "credentials": {
+        "oAuth2Api": {
+          "id": "ixG67TuKHPFpH19I",
+          "name": "Unnamed credential"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "할 일 구성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "수동 테스트": {
+      "main": [
+        [
+          {
+            "node": "할 일 구성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "할 일 구성": {
+      "main": [
+        [
+          {
+            "node": "톡캘린더에 할 일 등록",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "timezone": "Asia/Seoul",
+    "executionOrder": "v1"
+  },
+  "meta": null,
+  "tags": [],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "Pgl7ARrbqEWB1szW",
+      "projectId": "TwBQlM1mY6C8gAoC",
+      "createdAt": "2026-11-09T11:18:16.721Z",
+      "updatedAt": "2026-11-09T11:18:16.721Z"
+    }
+  ],
+  "activeVersion": null
+}
